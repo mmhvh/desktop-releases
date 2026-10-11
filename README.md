@@ -12,7 +12,7 @@ Electron 外壳：窗口里直接加载线上的 **mmhvh.com / mmhvh.cn**，不�
 | 层 | 怎么更新 | 什么时候生效 |
 |----|----------|--------------|
 | 网页内容（`mmhvh/frontend`） | 照常发网站（`master` → OSS / Cloudflare） | 立即。客户端每次启动 / 刷新都从线上加载，页面里的新版本提示（`useVersionCheck`）照常弹 |
-| 客户端外壳（本仓库） | 打 `v*` 标签 → CI 发布到本仓库 Releases | 已安装的客户端后台静默下载差分包（通常 1MB 左右），下完提示「立即重启」；选稍后则下次退出时自动安装 |
+| 客户端外壳（本仓库） | 改 `package.json` 版本号推到 `main` → CI 发布到本仓库 Releases | 已安装的客户端后台静默下载差分包（通常 1MB 左右），下完提示「立即重启」；选稍后则下次退出时自动安装 |
 
 绝大多数改动只动网站，不需要发客户端。只有改了本仓库（窗口行为、权限、菜单、Electron 版本…）才需要发版。
 
@@ -43,17 +43,13 @@ npm run dist                               # 本地出安装包 → release/MMHv
 
 ## 发版
 
-1. 改 `package.json` 的 `version`（如 `1.0.1`），提交并推到 `main`
-2. 打标签并推送（标签必须等于 `v` + 版本号，CI 会校验）：
-   ```bash
-   git tag v1.0.1
-   git push origin v1.0.1
-   ```
-3. `.github/workflows/release.yml` 在 `windows-latest` 上出包，在本仓库建 `v1.0.1` Release，
-   上传 `MMHvH-Setup.exe`、`MMHvH-Setup.exe.blockmap`、`latest.yml`。已安装的客户端几小时内会自己更新。
-   用的是 Actions 自带的 `GITHUB_TOKEN`，不需要配置任何 secret。
+改 `package.json` 的 `version`（如 `1.0.1`），提交并推到 `main`，就完了。
 
-手动运行这个 workflow（Actions → Release → Run workflow）只出包不发布，安装包在运行结果的 Artifacts 里。
+`.github/workflows/release.yml` 发现还没有 `v1.0.1` Release，就在 `windows-latest` 上出包、在当前提交上建 `v1.0.1`
+标签和 Release，上传 `MMHvH-Setup.exe`、`MMHvH-Setup.exe.blockmap`、`latest.yml`。已安装的客户端几小时内会自己更新。
+版本号没变的推送（改文档等）CI 会直接跳过。用的是 Actions 自带的 `GITHUB_TOKEN`，不需要配置任何 secret。
+
+也可以手动运行（Actions → Release → Run workflow）：逻辑相同，另外安装包会传到运行结果的 Artifacts 里。
 
 固定下载链接（网站「下载客户端」按钮可以直接用，永远指向最新版）：
 `https://github.com/mmhvh/desktop-releases/releases/latest/download/MMHvH-Setup.exe`

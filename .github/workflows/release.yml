@@ -1,50 +1,97 @@
 name: Release
 
-# 推 v* 标签 → 在 windows-latest 上出安装包，发布到本仓库同名 Release；已安装的客户端从这里自动更新。
-# 用的是 Actions 自带的 GITHUB_TOKEN（下面 permissions 给了 contents: write），不需要额外配置 secret。
-# 手动触发（workflow_dispatch）只出包、不发布，安装包在本次运行的 Artifacts 里。
+# 发版 = 改 package.json 的 version 并推到 main。
+# 这里读出版本号，若本仓库还没有「完整的」v<版本> Release（带 latest.yml），就在 windows-latest 上出包并发布
+# （没有标签会在当前提交上建）；已发过的版本直接跳过，所以平常改文档 / 小修小补推 main 不会重复出包。
+# 已安装的客户端从 Releases 自动更新。用 Actions 自带的 GITHUB_TOKEN（contents: write），不需要任何 secret。
+# 手动触发（workflow_dispatch）同样逻辑；另外每次都会把安装包传到本次运行的 Artifacts。
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   build-windows:
     runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      GH_TOKEN: ${{ github.token }}
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v5
 
+      - name: Decide whether to release
+        id: plan
+        run: |
+          tag="v$(node -p "require('./package.json').version")"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx 'latest.yml'; then
+            echo "Release ${tag} already published, nothing to do."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Release ${tag} missing or incomplete, will build and publish."
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Node.js 24.x
+        if: steps.plan.outputs.publish == 'true' || github.event_name == 'workflow_dispatch'
         uses: actions/setup-node@v5
         with:
           node-version: '24.x'
           cache: npm
 
-      - name: Check tag matches package.json version
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: |
-          version="$(node -p "require('./package.json').version")"
-          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
-            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${version}"
-            exit 1
-          fi
-
       - name: Install dependencies
+        if: steps.plan.outputs.publish == 'true' || github.event_name == 'workflow_dispatch'
         run: npm ci
 
+      # 只出包；上传交给下面的 gh（electron-builder 自带的上传器传 100MB+ 的安装包在 CI 上会断，v1.0.0 首发时踩过）。
+      # latest.yml 和打进安装包的 app-update.yml 照样按 electron-builder.yml 的 publish 配置生成。
       - name: Build installer
-        run: npx electron-builder --win --publish ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: steps.plan.outputs.publish == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          set -o pipefail
+          npx electron-builder --win --publish never 2>&1 | tee build.log
+
+      - name: Publish GitHub release
+        if: steps.plan.outputs.publish == 'true'
+        run: |
+          set -o pipefail
+          tag="${{ steps.plan.outputs.tag }}"
+          files=(release/MMHvH-Setup.exe release/MMHvH-Setup.exe.blockmap release/latest.yml)
+          {
+            if gh release view "$tag" >/dev/null 2>&1; then
+              gh release upload "$tag" "${files[@]}" --clobber
+              gh release edit "$tag" --draft=false --prerelease=false --latest
+            else
+              gh release create "$tag" "${files[@]}" --target "$GITHUB_SHA" \
+                --title "MMHvH ${tag#v}" --notes "下载 / Download: MMHvH-Setup.exe" --latest
+            fi
+          } 2>&1 | tee publish.log
+
+      # 匿名看不到 Actions 日志，失败时把末尾几十行转成 annotation（公开 API 可读）
+      - name: Surface failure output
+        if: failure()
+        run: |
+          for f in build.log publish.log; do
+            [ -s "$f" ] || continue
+            echo "::error title=$f::$(tail -n 40 "$f" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          done
 
       - name: Upload installer artifact
+        if: steps.plan.outputs.publish == 'true' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: MMHvH-Setup
