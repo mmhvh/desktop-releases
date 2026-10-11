@@ -65,15 +65,16 @@ function installSessionPolicy(ses) {
 
 /**
  * 每个 webContents（主窗口、自家页面开的新窗口）都挂一遍：
- * - target=_blank / window.open：自家页面 → 客户端里开新窗口（同一会话，登录态共享）；
+ * - target=_blank / window.open：自家页面 → 客户端里开新窗口（同一会话，登录态共享；
+ *   网站的独立聊天窗口按窗口名 mmhvh-chat 单独定尺寸，见 main.js 的 childWindowOptions）；
  *   外站 → 交给系统浏览器（工单附件下载、Steam 个人资料、备案号链接…）。
  * - 同窗跳转一律放行：Discord / Steam 登录、充值收银台、实名认证都是「同窗跳出去 → 回跳 origin」，
  *   拦了这些流程就断了。外站页面上菜单栏会显示出来，可以 Alt+← / 「导航 → 首页」回来。
  */
 function installContentsPolicy(contents, { newWindowOptions, reload }) {
-    contents.setWindowOpenHandler(({ url }) => {
+    contents.setWindowOpenHandler(({ url, frameName }) => {
         if (sites.isTrusted(url)) {
-            return { action: 'allow', overrideBrowserWindowOptions: newWindowOptions() };
+            return { action: 'allow', overrideBrowserWindowOptions: newWindowOptions(frameName) };
         }
         const external = sites.parseHttpUrl(url);
         if (external) {

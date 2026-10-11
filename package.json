@@ -1,7 +1,7 @@
 {
   "name": "mmhvh-desktop",
   "productName": "MMHvH",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MMHvH desktop client",
   "author": "MMHvH",
   "private": true,

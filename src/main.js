@@ -4,6 +4,8 @@ const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, screen, session,
 const path = require('node:path');
 
 const APP_NAME = 'MMHvH';
+// 网站的独立聊天窗口（前端 hooks/usePopoutWindow，Social.tsx 里 window.open 的窗口名）
+const CHAT_WINDOW = 'mmhvh-chat';
 // 与 electron-builder.yml 的 appId 一致：NSIS 建的开始菜单快捷方式带的就是这个 AppUserModelID，
 // 对不上的话 Windows 不显示网页发出的系统通知。
 const APP_ID = 'com.mmhvh.desktop';
@@ -111,8 +113,10 @@ function start() {
         win.on('resize', saveBounds);
         win.on('move', saveBounds);
         win.on('close', saveBounds);
+        // 主窗口关了就整个退出：网站的聊天窗口内容是主窗口画的（共用主窗口的 React 树和 WS），留着只剩空壳
         win.on('closed', () => {
             mainWindow = null;
+            app.quit();
         });
 
         setupWindow(win);
@@ -128,15 +132,30 @@ function start() {
         return win;
     }
 
+    // 保存的窗口位置还在某块屏幕上（显示器拔了 / 分辨率变了的话就不用它）
+    function onSomeDisplay(b) {
+        return !!b && screen.getAllDisplays().some(({ workArea: a }) =>
+            b.x < a.x + a.width - 100 && b.x + b.width > a.x + 100 &&
+            b.y < a.y + a.height - 50 && b.y + b.height > a.y + 50);
+    }
+
     function restoreBounds() {
         const saved = settings.get('bounds');
-        const visible = saved && screen.getAllDisplays().some(({ workArea: a }) =>
-            saved.x < a.x + a.width - 100 && saved.x + saved.width > a.x + 100 &&
-            saved.y < a.y + a.height - 50 && saved.y + saved.height > a.y + 50);
-        if (visible) return saved;
-        // 首次启动或显示器变了（保存的位置已不在任何屏幕上）：按主屏工作区居中
+        if (onSomeDisplay(saved)) return saved;
+        // 首次启动或显示器变了：按主屏工作区居中
         const { width, height } = screen.getPrimaryDisplay().workAreaSize;
         return { width: Math.min(1400, width), height: Math.min(900, height) };
+    }
+
+    // 聊天窗口：记住上次的位置大小；第一次开就贴在主窗口所在屏幕的右侧
+    function chatWindowBounds() {
+        const saved = settings.get('chatBounds');
+        if (onSomeDisplay(saved)) return saved;
+        const near = mainWindow ? screen.getDisplayMatching(mainWindow.getBounds()) : screen.getPrimaryDisplay();
+        const a = near.workArea;
+        const width = Math.min(420, a.width);
+        const height = Math.min(720, a.height);
+        return { width, height, x: a.x + a.width - width - 24, y: a.y + Math.round((a.height - height) / 2) };
     }
 
     /** 主窗口和自家页面开出来的新窗口共用的行为。 */
@@ -144,7 +163,10 @@ function start() {
         const contents = win.webContents;
 
         policy.installContentsPolicy(contents, { newWindowOptions: childWindowOptions, reload: reloadContents });
-        contents.on('did-create-window', (child) => setupWindow(child));
+        contents.on('did-create-window', (child, { frameName }) => {
+            setupWindow(child);
+            if (frameName === CHAT_WINDOW) rememberChatBounds(child);
+        });
 
         // 标题：网站的 " - HvH.gg Prime" 后缀换成客户端名；外站页面带上域名，让人知道自己在哪
         win.on('page-title-updated', (event, title) => {
@@ -198,9 +220,22 @@ function start() {
         });
     }
 
-    function childWindowOptions() {
+    function childWindowOptions(frameName) {
+        if (frameName === CHAT_WINDOW) {
+            return { ...baseWindowOptions(), minWidth: 340, minHeight: 480, ...chatWindowBounds() };
+        }
         const { width, height } = screen.getPrimaryDisplay().workAreaSize;
         return { ...baseWindowOptions(), width: Math.min(1280, width), height: Math.min(860, height) };
+    }
+
+    function rememberChatBounds(win) {
+        const save = () => {
+            if (win.isDestroyed() || win.isMinimized() || win.isMaximized() || win.isFullScreen()) return;
+            settings.set('chatBounds', win.getBounds());
+        };
+        win.on('resize', save);
+        win.on('move', save);
+        win.on('close', save);
     }
 
     function windowTitle(url, title) {

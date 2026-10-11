@@ -68,6 +68,9 @@ npm run dist                               # 本地出安装包 → release/MMHv
 - **自家页面**（mmhvh.com / mmhvh.cn / dev.mmhvh.com）直接拿到通知、麦克风、防休眠、剪贴板权限，`Notification.permission` 为 `granted`；
   其余网站一律不给权限。
 - **target=_blank / window.open**：自家页面 → 客户端里开新窗口（共享登录态）；外站 → 系统浏览器。
+- **聊天窗口**：网站在客户端里把聊天弹成独立窗口（`window.open('/popout.html', 'mmhvh-chat')`，内容由主窗口渲染，
+  共用主窗口那条 WS）。外壳按窗口名给它 420×720、贴主窗口所在屏幕右侧，之后记住位置大小（`settings.json` 的 `chatBounds`）。
+  **主窗口一关整个客户端就退出**，免得聊天窗口变成没人画的空壳。
 - **同窗跳转**全部放行：Discord / Steam 登录、充值收银台、实名认证都是「跳出去再回跳」。停在外站页面时菜单栏会显示出来，
   可用「导航 → 后退 / 首页」或鼠标侧键、Alt+← 回来。
 - **外部协议**只放行 `steam:`（连接服务器按钮）和 `mailto:`。
