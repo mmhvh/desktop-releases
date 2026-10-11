@@ -1,0 +1,53 @@
+# electron-builder 打包配置：Windows NSIS 安装包 + GitHub Releases 自动更新源。
+# 本地出包：npm run dist（产物在 release/）；发版走 CI，见 README.md。
+appId: com.mmhvh.desktop # 与 src/main.js 的 APP_ID 一致（Windows 通知靠它对上开始菜单快捷方式）
+productName: MMHvH
+copyright: Copyright © MMHvH
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - src/**/*
+  - build/icon.png
+  - package.json
+
+# 加固：禁止把客户端当 node 跑、禁止 NODE_OPTIONS / --inspect 注入、只从（校验过的）asar 加载代码。
+# grantFileProtocolExtraPrivileges 保持默认（开）：关掉后 file:// 换成 Chromium 原生实现、读不了 app.asar 里的文件，
+# 断网页 src/offline.html 会变成 ERR_FILE_NOT_FOUND（实测）。远程页面本来就跳不到 file://。
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.png
+  # 文件名不带版本号：网站上的「下载客户端」可以固定链到
+  # https://github.com/mmhvh/desktop-releases/releases/latest/download/MMHvH-Setup.exe
+  artifactName: MMHvH-Setup.${ext}
+
+# 一键安装、装到当前用户（%LOCALAPPDATA%\Programs\MMHvH），不弹 UAC；自动更新也就不需要管理员权限
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: MMHvH
+  deleteAppDataOnUninstall: false
+  installerLanguages: [zh_CN, en_US]
+  multiLanguageInstaller: true
+
+# 自动更新源：本仓库（公开）的 Releases。客户端检查更新不需要 token；
+# CI（.github/workflows/release.yml）发布时用 Actions 自带的 GITHUB_TOKEN。
+publish:
+  provider: github
+  owner: mmhvh
+  repo: desktop-releases
+  releaseType: release

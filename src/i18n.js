@@ -1,0 +1,113 @@
+'use strict';
+
+const { app } = require('electron');
+
+// 壳自己的少量界面文字（菜单、右键菜单、更新对话框），跟随系统语言：中文系统用 zh，其余 en。
+// 与网站一致只做这两种语言。
+const STRINGS = {
+    zh: {
+        menuApp: 'MMHvH',
+        site: '站点',
+        siteGlobal: '国际版（mmhvh.com）',
+        siteCn: '中国版（mmhvh.cn）',
+        checkUpdates: '检查更新…',
+        openInBrowser: '在浏览器中打开当前页',
+        openLogs: '打开日志文件夹',
+        about: '关于 MMHvH',
+        quit: '退出',
+        menuNavigate: '导航',
+        back: '后退',
+        forward: '前进',
+        home: '首页',
+        reload: '刷新',
+        forceReload: '强制刷新',
+        menuEdit: '编辑',
+        undo: '撤销',
+        redo: '重做',
+        cut: '剪切',
+        copy: '复制',
+        paste: '粘贴',
+        selectAll: '全选',
+        menuView: '视图',
+        zoomIn: '放大',
+        zoomOut: '缩小',
+        resetZoom: '实际大小',
+        fullscreen: '全屏',
+        devTools: '开发者工具',
+        copyLink: '复制链接地址',
+        openLinkInBrowser: '在浏览器中打开链接',
+        copyImage: '复制图片',
+        copyImageUrl: '复制图片地址',
+        updateReadyTitle: '更新已就绪',
+        updateReadyMessage: 'MMHvH {version} 已下载完成',
+        updateReadyDetail: '立即重启以完成更新；选「稍后」的话，下次退出客户端时会自动安装。',
+        restartNow: '立即重启',
+        later: '稍后',
+        upToDate: '已是最新版本',
+        upToDateDetail: '当前版本 {version}。网站内容本来就是实时的，这里只更新客户端外壳。',
+        updateFound: '发现新版本 {version}',
+        updateFoundDetail: '正在后台下载，下载完成后会提示你重启。',
+        updateError: '检查更新失败',
+        updateDevMode: '开发模式（未打包）下不检查更新。',
+        ok: '确定',
+        aboutDetail: '版本 {version}\nElectron {electron} · Chromium {chrome}\n\n页面内容直接来自 {site}，网站更新后客户端里即时生效。',
+    },
+    en: {
+        menuApp: 'MMHvH',
+        site: 'Site',
+        siteGlobal: 'Global (mmhvh.com)',
+        siteCn: 'China (mmhvh.cn)',
+        checkUpdates: 'Check for Updates…',
+        openInBrowser: 'Open Page in Browser',
+        openLogs: 'Open Logs Folder',
+        about: 'About MMHvH',
+        quit: 'Quit',
+        menuNavigate: 'Navigate',
+        back: 'Back',
+        forward: 'Forward',
+        home: 'Home',
+        reload: 'Reload',
+        forceReload: 'Force Reload',
+        menuEdit: 'Edit',
+        undo: 'Undo',
+        redo: 'Redo',
+        cut: 'Cut',
+        copy: 'Copy',
+        paste: 'Paste',
+        selectAll: 'Select All',
+        menuView: 'View',
+        zoomIn: 'Zoom In',
+        zoomOut: 'Zoom Out',
+        resetZoom: 'Actual Size',
+        fullscreen: 'Full Screen',
+        devTools: 'Developer Tools',
+        copyLink: 'Copy Link Address',
+        openLinkInBrowser: 'Open Link in Browser',
+        copyImage: 'Copy Image',
+        copyImageUrl: 'Copy Image Address',
+        updateReadyTitle: 'Update ready',
+        updateReadyMessage: 'MMHvH {version} has been downloaded',
+        updateReadyDetail: 'Restart now to finish updating. If you choose Later, it installs automatically the next time you quit.',
+        restartNow: 'Restart Now',
+        later: 'Later',
+        upToDate: "You're up to date",
+        upToDateDetail: 'Version {version}. Site content is always live; this only updates the desktop shell.',
+        updateFound: 'Version {version} is available',
+        updateFoundDetail: "It's downloading in the background. You'll be asked to restart when it's ready.",
+        updateError: 'Update check failed',
+        updateDevMode: 'Updates are disabled in development (unpackaged) builds.',
+        ok: 'OK',
+        aboutDetail: 'Version {version}\nElectron {electron} · Chromium {chrome}\n\nPages load live from {site}, so website updates show up here immediately.',
+    },
+};
+
+let lang = null;
+
+// app.getLocale() 在 Windows 上要等 ready 之后才准，所以首次用到时再定语言
+function t(key, vars = {}) {
+    if (!lang) lang = /^zh/i.test(app.getPreferredSystemLanguages()[0] ?? app.getLocale()) ? 'zh' : 'en';
+    const text = STRINGS[lang][key] ?? STRINGS.en[key] ?? key;
+    return text.replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? ''));
+}
+
+module.exports = { t };

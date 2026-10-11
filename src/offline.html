@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file:; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
+    <title>MMHvH</title>
+    <!-- 主进程在主框架加载失败（断网 / DNS / 超时）时换成本页：?url=原地址&code=&desc=&alt=另一个站点的同路径 -->
+    <style>
+        :root {
+            color-scheme: light dark;
+            --bg: #ffffff;
+            --fg: #1f2328;
+            --muted: #59636e;
+            --card: #f6f8fa;
+            --line: #d1d9e0;
+            --accent: #0d6efd; /* 与网站 tokens.ts 的 primary 一致 */
+            --accent-fg: #ffffff;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0e0e0e;
+                --fg: #e6edf3;
+                --muted: #9198a1;
+                --card: #161616;
+                --line: #2a2a2a;
+                --accent: #3b82f6;
+            }
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; }
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: var(--bg);
+            color: var(--fg);
+            font: 15px/1.6 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+        }
+        main { max-width: 440px; text-align: center; }
+        img { width: 72px; height: 72px; border-radius: 18px; }
+        h1 { margin: 20px 0 8px; font-size: 22px; font-weight: 600; }
+        p { margin: 0 0 8px; color: var(--muted); }
+        code {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 4px 10px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--card);
+            color: var(--muted);
+            font: 13px/1.5 Consolas, monospace;
+        }
+        .actions { display: flex; gap: 12px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
+        button {
+            min-width: 120px;
+            padding: 9px 20px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--card);
+            color: var(--fg);
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:hover { border-color: var(--muted); }
+        button.primary { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
+        button.primary:hover { filter: brightness(1.08); }
+        [hidden] { display: none; }
+    </style>
+</head>
+<body>
+<main>
+    <img src="../build/icon.png" alt="" />
+    <h1 id="title"></h1>
+    <p id="hint"></p>
+    <code id="detail" hidden></code>
+    <div class="actions">
+        <button id="retry" class="primary" type="button"></button>
+        <button id="alt" type="button" hidden></button>
+    </div>
+</main>
+<script>
+    const params = new URLSearchParams(location.search);
+    const httpUrl = (raw) => {
+        try {
+            const url = new URL(raw || '');
+            return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
+        } catch {
+            return null;
+        }
+    };
+    const target = httpUrl(params.get('url'));
+    const alt = httpUrl(params.get('alt'));
+
+    const zh = /^zh/i.test(navigator.language);
+    const text = zh
+        ? { title: '无法连接到 MMHvH', hint: '请检查网络连接。网络恢复后会自动重试。', retry: '重试', alt: (host) => `改用 ${host}` }
+        : { title: "Can't reach MMHvH", hint: "Check your internet connection. We'll retry automatically once you're back online.", retry: 'Retry', alt: (host) => `Try ${host}` };
+
+    document.getElementById('title').textContent = text.title;
+    document.getElementById('hint').textContent = text.hint;
+    document.getElementById('retry').textContent = text.retry;
+
+    const desc = params.get('desc');
+    if (desc) {
+        const detail = document.getElementById('detail');
+        detail.textContent = `${desc} (${params.get('code')})`;
+        detail.hidden = false;
+    }
+
+    const go = (url) => {
+        if (url) location.replace(url.href);
+    };
+    document.getElementById('retry').addEventListener('click', () => go(target));
+
+    if (alt) {
+        const button = document.getElementById('alt');
+        button.textContent = text.alt(alt.host);
+        button.hidden = false;
+        button.addEventListener('click', () => go(alt));
+    }
+
+    // 网卡恢复时立刻重试；另外每 15 秒试一次（连得上网但服务器暂时不通的情况）
+    window.addEventListener('online', () => go(target));
+    setInterval(() => {
+        if (navigator.onLine) go(target);
+    }, 15000);
+</script>
+</body>
+</html>
